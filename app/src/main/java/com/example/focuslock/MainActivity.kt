@@ -1,0 +1,174 @@
+package com.example.focuslock
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.AlarmManager
+import android.app.AlertDialog
+import android.app.AppOpsManager
+import android.app.PendingIntent
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.widget.Button
+import android.view.accessibility.AccessibilityManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import com.example.focuslock.ui.theme.FocusLockTheme
+
+class MainActivity : AppCompatActivity() {
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val adminComponent = ComponentName(this, FocusDeviceAdminReceiver::class.java)
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!alarmManager.canScheduleExactAlarms()) {
+                // Redirect user to settings
+                startActivity(
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                )
+            }
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
+        }
+
+        if (!hasUsageAccess()) {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+
+        findViewById<Button>(R.id.btnEnable).setOnClickListener @androidx.annotation.RequiresPermission(
+            android.Manifest.permission.SCHEDULE_EXACT_ALARM
+        ) {
+
+            if (!isAccessibilityServiceEnabled(this)) {
+                showAccessibilityRequiredDialog()
+                return@setOnClickListener
+            }
+
+            if (!dpm.isAdminActive(adminComponent)) {
+                requestDeviceAdmin()
+                return@setOnClickListener
+            }
+            FocusSessionManager.startSession(this)
+
+            val dpm =
+                getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+
+            dpm.lockNow()
+
+            scheduleSessionEnd(applicationContext);
+            startForegroundService(Intent(this, LockService::class.java))
+        }
+    }
+
+    private fun showAccessibilityRequiredDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Accessibility required")
+            .setMessage(
+                "Focus Lock needs Accessibility access to detect when you leave allowed apps " +
+                        "and to block distractions.\n\n" +
+                        "We do NOT read your screen content."
+            )
+            .setPositiveButton("Enable") { _, _ ->
+                openAccessibilitySettings(this)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val am =
+            context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+
+        val enabledServices =
+            am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+
+        return enabledServices.any {
+            it.resolveInfo.serviceInfo.packageName == context.packageName &&
+                    it.resolveInfo.serviceInfo.name == FocusAccessibilityService::class.java.name
+        }
+    }
+
+    fun openAccessibilitySettings(context: Context) {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun scheduleSessionEnd(context: Context) {
+        val alarmManager =
+            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        val intent = Intent(context, FocusSessionExpiredReceiver::class.java)
+        val pi = PendingIntent.getBroadcast(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        if (alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + 1 * 60 * 1000L,
+                pi
+            )
+        }
+    }
+
+
+    private fun hasUsageAccess(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun requestDeviceAdmin() {
+        val component = ComponentName(
+            this,
+            FocusDeviceAdminReceiver::class.java
+        )
+
+        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, component)
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Required to lock the phone during Focus Mode"
+            )
+        }
+
+        startActivity(intent)
+    }
+
+}
