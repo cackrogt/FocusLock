@@ -12,6 +12,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import android.provider.Settings
 import android.widget.Button
 import android.view.accessibility.AccessibilityManager
@@ -84,6 +85,50 @@ class MainActivity : AppCompatActivity() {
             scheduleSessionEnd(applicationContext);
             startForegroundService(Intent(this, LockService::class.java))
         }
+
+        val btnSelectApp = findViewById<Button>(R.id.btnSelectApp)
+
+        btnSelectApp.setOnClickListener {
+            showAppPicker()
+        }
+    }
+
+    private fun showAppPicker() {
+        val apps = getLaunchableApps(this)
+
+        val labels = apps.map { it.label }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Select App")
+            .setItems(labels) { _, which ->
+                val selectedApp = apps[which]
+
+                AllowedAppStore.set(this, selectedApp.packageName)
+
+                Toast.makeText(
+                    this,
+                    "Selected: ${selectedApp.label}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .show()
+    }
+
+    fun getLaunchableApps(context: Context): List<LaunchableApp> {
+        val pm = context.packageManager
+
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+
+        return pm.queryIntentActivities(intent, 0)
+            .map {
+                LaunchableApp(
+                    label = it.loadLabel(pm).toString(),
+                    packageName = it.activityInfo.packageName
+                )
+            }
+            .sortedBy { it.label.lowercase() }
     }
 
     private fun showAccessibilityRequiredDialog() {

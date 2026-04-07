@@ -11,7 +11,7 @@ import androidx.annotation.RequiresPermission
 
 object FocusSessionManager {
 
-    private const val SESSION_DURATION_MS = 1 * 60 * 1000L // 5 minutes
+    private const val SESSION_DURATION_MS = 10 * 60 * 1000L // 10 minutes
 
     @RequiresApi(Build.VERSION_CODES.S)
     @RequiresPermission(Manifest.permission.SCHEDULE_EXACT_ALARM)

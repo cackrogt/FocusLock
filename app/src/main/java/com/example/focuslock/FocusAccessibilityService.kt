@@ -1,6 +1,10 @@
 package com.example.focuslock
 
 import android.accessibilityservice.AccessibilityService
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityEvent.TYPE_WINDOWS_CHANGED
@@ -8,10 +12,52 @@ import android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
 
 class FocusAccessibilityService : AccessibilityService() {
 
+    private fun getAllowedApps(): Set<String> {
+        val userApp = AllowedAppStore.get(this)
+
+        return setOfNotNull(
+            "com.google.android.apps.messaging",
+            "com.samsungsds.nexsign.client.singleid.pub",
+            userApp
+        )
+    }
+
     private val allowedApps = setOf(
         "com.google.android.apps.messaging",
         "com.samsungsds.nexsign.client.singleid.pub"
     )
+
+    private val toBeLocked = setOf(
+        "com.android.settings",
+    )
+
+    private val toBeIgnored = setOf(
+        //"com.sec.android.app.launcher",
+        "com.android.systemui",
+        "com.samsung.android.honeyboard"
+    )
+
+    private fun lockDevice() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE)
+                as DevicePolicyManager
+
+        val admin = ComponentName(
+            this,
+            FocusDeviceAdminReceiver::class.java
+        )
+
+        if (dpm.isAdminActive(admin)) {
+            dpm.lockNow()
+        }
+    }
+
+    private fun goToHome() {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        startActivity(intent)
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
 
@@ -33,9 +79,12 @@ class FocusAccessibilityService : AccessibilityService() {
 //            return
 //        }
 
-        if (pkg in allowedApps) {
+        if (pkg in getAllowedApps() || pkg in toBeIgnored) {
             OverlayController.hide()
-        } else {
+        } else if (pkg in toBeLocked) {
+            goToHome()
+            lockDevice()
+        } else{
             OverlayController.show()
         }
 

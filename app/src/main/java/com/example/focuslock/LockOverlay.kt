@@ -97,13 +97,35 @@ class LockOverlay(
         v.findViewById<Button>(R.id.btnApp2).setOnClickListener {
             launchApp("com.google.android.apps.messaging")
         }
+        val userBtn = v.findViewById<Button>(R.id.btnUserApp)
+        val userAppPkg = AllowedAppStore.get(context)
+
+        if (userAppPkg != null) {
+            val pm = context.packageManager
+            val appName = try {
+                pm.getApplicationLabel(
+                    pm.getApplicationInfo(userAppPkg, 0)
+                ).toString()
+            } catch (e: Exception) {
+                "User App"
+            }
+
+            userBtn.text = appName
+            userBtn.visibility = View.VISIBLE
+
+            userBtn.setOnClickListener {
+                launchApp(userAppPkg)
+            }
+        } else {
+            userBtn.visibility = View.GONE
+        }
 
         v.findViewById<Button>(R.id.btnLock).setOnClickListener {
             lockDevice()
         }
     }
 
-    private fun lockDevice() {
+    public fun lockDevice() {
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE)
                 as DevicePolicyManager
         val admin = ComponentName(

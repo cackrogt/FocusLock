@@ -1,6 +1,6 @@
 object FocusSessionState {
 
-    private const val DURATION_MS = 1 * 60 * 1000L // 5 minutes
+    private const val DURATION_MS = 10 * 60 * 1000L // 5 minutes
     private var startTime: Long = 0L
 
     fun start() {
