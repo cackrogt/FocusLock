@@ -12,6 +12,10 @@ import android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
 
 class FocusAccessibilityService : AccessibilityService() {
 
+    private var currentStableApp: String? = null
+    private var lastChangeTime = 0L
+    private val STABILITY_DELAY_MS = 100L
+
     private fun getAllowedApps(): Set<String> {
         val userApp = AllowedAppStore.get(this)
 
@@ -66,9 +70,9 @@ class FocusAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (event.eventType != TYPE_WINDOW_STATE_CHANGED &&
+        if (event.eventType != TYPE_WINDOW_STATE_CHANGED /*&&
             event.eventType != TYPE_WINDOWS_CHANGED &&
-            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
+            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED*/) return
 
         val className = event.className?.toString()
 
@@ -78,17 +82,47 @@ class FocusAccessibilityService : AccessibilityService() {
 //            OverlayController.show()
 //            return
 //        }
+        val now = System.currentTimeMillis()
 
-        if (pkg in getAllowedApps() || pkg in toBeIgnored) {
+        val isAllowed = pkg in getAllowedApps()
+        val isIgnored = pkg in toBeIgnored
+
+        // Step 1: ignore noisy packages
+//        if (isIgnored) {
+//            return
+//        }
+        logEvent(pkg, className)
+
+//        if (!isIgnored && pkg != currentStableApp) {
+//            currentStableApp = pkg
+//            lastChangeTime = now
+//            return
+//        }
+//
+//        // Step 3: wait until stable
+//        if (now - lastChangeTime < STABILITY_DELAY_MS) {
+//            return
+//        }
+
+        // Step 4: enforce ONCE per stable state
+        if (isAllowed || isIgnored) {
             OverlayController.hide()
         } else if (pkg in toBeLocked) {
             goToHome()
             lockDevice()
-        } else{
+        } else {
             OverlayController.show()
         }
 
-        logEvent(pkg, className)
+//        if (pkg in getAllowedApps() || pkg in toBeIgnored) {
+//            OverlayController.hide()
+//        } else if (pkg in toBeLocked) {
+//            goToHome()
+//            lockDevice()
+//        } else{
+//            OverlayController.show()
+//        }
+
         classifyEvent(pkg, className)
     }
 
@@ -96,7 +130,7 @@ class FocusAccessibilityService : AccessibilityService() {
 
     private fun logEvent(pkg: String, className: String?) {
         Log.d(
-            "FOCUSLOCK",
+            "FOCUSLOCKFORE",
             "Foreground changed → pkg=$pkg  class=$className"
         )
     }
