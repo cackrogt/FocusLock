@@ -33,7 +33,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".LockService"
+            android:name=".lock_overlay.LockService"
             android:foregroundServiceType="specialUse"
             android:exported="false" />
         <service

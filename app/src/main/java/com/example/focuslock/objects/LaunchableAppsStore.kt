@@ -1,4 +1,4 @@
-package com.example.focuslock
+package com.example.focuslock.objects
 
 object LaunchableAppsStore {
     private val apps = mutableSetOf<String>()

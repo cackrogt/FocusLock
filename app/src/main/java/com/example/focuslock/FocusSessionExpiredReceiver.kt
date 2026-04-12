@@ -9,6 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
+import com.example.focuslock.lock_overlay.LockService
+import com.example.focuslock.objects.FocusSessionState
+import com.example.focuslock.objects.OverlayController
 
 class FocusSessionExpiredReceiver : BroadcastReceiver() {
 

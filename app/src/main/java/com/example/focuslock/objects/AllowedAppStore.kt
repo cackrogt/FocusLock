@@ -1,4 +1,4 @@
-package com.example.focuslock
+package com.example.focuslock.objects
 
 import android.content.Context
 

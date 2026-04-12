@@ -32,8 +32,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.focuslock.ui.theme.FocusLockTheme
 import android.widget.ProgressBar
 import android.view.View
+import com.example.focuslock.lock_overlay.LockService
+import com.example.focuslock.objects.AllowedAppStore
+import com.example.focuslock.objects.FocusSessionManager
+import com.example.focuslock.objects.FocusSessionState
+import com.example.focuslock.objects.KnownAppsStore
+import com.example.focuslock.objects.LaunchableAppsStore
 
 class MainActivity : AppCompatActivity() {
+
+    private var selectedDurationMs = 5 * 60 * 1000L // default 5 min
 
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,6 +96,34 @@ class MainActivity : AppCompatActivity() {
         btnSelectApp.setOnClickListener {
             showAppPicker()
         }
+
+        val btnTimer = findViewById<Button>(R.id.btnTimer)
+
+        btnTimer.setOnClickListener {
+            showTimerPicker(btnTimer)
+        }
+    }
+
+    fun showTimerPicker(button: Button) {
+
+        val options = arrayOf("2 min", "5 min", "10 min", "15 min", "30 min")
+        val values = listOf(
+            2 * 60 * 1000L,
+            5 * 60 * 1000L,
+            10 * 60 * 1000L,
+            15 * 60 * 1000L,
+            30 * 60 * 1000L
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Select Focus Duration")
+            .setItems(options) { _, which ->
+                setSelectedDuration(values[which]);
+
+                val minutes = getSelectedDuration() / 60000
+                button.text = "Timer Set For ($minutes min)"
+            }
+            .show()
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
@@ -97,16 +133,10 @@ class MainActivity : AppCompatActivity() {
             val launchableApps = getLaunchableAppsList(this)
 
             runOnUiThread {
-                KnownAppsStore.set(apps)
-                KnownAppsStore.getAll().forEach {
-                    Log.i("ANKU_FOCUS_KNOWN", it)
-                }
 
                 LaunchableAppsStore.set(launchableApps)
-
-                // Optional: debug log
                 launchableApps.forEach {
-                    Log.i("FOCUS_LAUNCHABLE", it)
+                    Log.i("ANKU_FOCUS_LAUNCHABLE", it)
                 }
                 hideLoading()
                 startFocusSession()
@@ -116,15 +146,25 @@ class MainActivity : AppCompatActivity() {
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun startFocusSession() {
-        FocusSessionManager.startSession(this)
+        val duration = selectedDurationMs
+
+        FocusSessionState.start(duration)
+        FocusSessionManager.startSession(this, duration)
 
         val dpm =
             getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
 
         dpm.lockNow()
 
-        scheduleSessionEnd(applicationContext);
         startForegroundService(Intent(this, LockService::class.java))
+    }
+
+    public fun setSelectedDuration(duration: Long) {
+        selectedDurationMs = duration;
+    }
+
+    public fun getSelectedDuration(): Long {
+        return selectedDurationMs
     }
 
     private fun getAllRelevantApps(): Set<String> {
@@ -246,28 +286,6 @@ class MainActivity : AppCompatActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.S)
-    private fun scheduleSessionEnd(context: Context) {
-        val alarmManager =
-            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        val intent = Intent(context, FocusSessionExpiredReceiver::class.java)
-        val pi = PendingIntent.getBroadcast(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        if (alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                System.currentTimeMillis() + 1 * 60 * 1000L,
-                pi
-            )
-        }
     }
 
 
