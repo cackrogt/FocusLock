@@ -26,11 +26,6 @@ class FocusAccessibilityService : AccessibilityService() {
         )
     }
 
-    private val allowedApps = setOf(
-        "com.google.android.apps.messaging",
-        "com.samsungsds.nexsign.client.singleid.pub"
-    )
-
     private val toBeLocked = setOf(
         "com.android.settings",
     )
@@ -70,58 +65,43 @@ class FocusAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (event.eventType != TYPE_WINDOW_STATE_CHANGED /*&&
+        if (event.eventType != TYPE_WINDOW_STATE_CHANGED &&
             event.eventType != TYPE_WINDOWS_CHANGED &&
-            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED*/) return
+            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
 
         val className = event.className?.toString()
 
         val pkg = event.packageName?.toString() ?: return
-
-//        if (pkg == "com.android.systemui") {
-//            OverlayController.show()
-//            return
-//        }
         val now = System.currentTimeMillis()
-
         val isAllowed = pkg in getAllowedApps()
         val isIgnored = pkg in toBeIgnored
 
-        // Step 1: ignore noisy packages
-//        if (isIgnored) {
-//            return
-//        }
         logEvent(pkg, className)
 
-//        if (!isIgnored && pkg != currentStableApp) {
-//            currentStableApp = pkg
-//            lastChangeTime = now
-//            return
-//        }
-//
-//        // Step 3: wait until stable
-//        if (now - lastChangeTime < STABILITY_DELAY_MS) {
-//            return
-//        }
+        val isKnown = KnownAppsStore.contains(pkg)
+        if (!isKnown) {
+            Log.i("ANKU_FOCUS_DEBUG", "IGNORED UNKNOWN: $pkg")
+        } else {
+            Log.i("ANKU_FOCUS_DEBUG", "KNOWN: $pkg")
+        }
 
-        // Step 4: enforce ONCE per stable state
-        if (isAllowed || isIgnored) {
+        if(!isKnown) {
+            Log.i("ANKU_FOCUS_IGNORE", "Ignored: $pkg")
+            return;
+        }
+
+        val isLaunchable = LaunchableAppsStore.contains(pkg)
+
+        if (isAllowed) {
             OverlayController.hide()
         } else if (pkg in toBeLocked) {
             goToHome()
             lockDevice()
+        } else if (!isLaunchable) {
+            // maintain prev;
         } else {
             OverlayController.show()
         }
-
-//        if (pkg in getAllowedApps() || pkg in toBeIgnored) {
-//            OverlayController.hide()
-//        } else if (pkg in toBeLocked) {
-//            goToHome()
-//            lockDevice()
-//        } else{
-//            OverlayController.show()
-//        }
 
         classifyEvent(pkg, className)
     }
@@ -129,8 +109,8 @@ class FocusAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     private fun logEvent(pkg: String, className: String?) {
-        Log.d(
-            "FOCUSLOCKFORE",
+        Log.i(
+            "ANKU_FOCUSLOCKFORE",
             "Foreground changed → pkg=$pkg  class=$className"
         )
     }
@@ -138,19 +118,19 @@ class FocusAccessibilityService : AccessibilityService() {
     private fun classifyEvent(pkg: String, className: String?) {
         when {
             isLauncher(pkg) ->
-                Log.d("FOCUSLOCK", "→ HOME detected")
+                Log.i("ANKU_FOCUSLOCK", "→ HOME detected")
 
             isRecents(pkg, className) ->
-                Log.d("FOCUSLOCK", "→ RECENTS detected")
+                Log.i("ANKU_FOCUSLOCK", "→ RECENTS detected")
 
             isSettings(pkg) ->
-                Log.d("FOCUSLOCK", "→ SETTINGS detected")
+                Log.i("ANKU_FOCUSLOCK", "→ SETTINGS detected")
 
             isSystemUI(pkg) ->
-                Log.d("FOCUSLOCK", "→ SYSTEM UI (shade / lock / recents)")
+                Log.i("ANKU_FOCUSLOCK", "→ SYSTEM UI (shade / lock / recents)")
 
             else ->
-                Log.d("FOCUSLOCK", "→ APP = $pkg")
+                Log.i("ANKU_FOCUSLOCK", "→ APP = $pkg")
         }
     }
 

@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
@@ -29,6 +30,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.focuslock.ui.theme.FocusLockTheme
+import android.widget.ProgressBar
+import android.view.View
 
 class MainActivity : AppCompatActivity() {
 
@@ -75,15 +78,9 @@ class MainActivity : AppCompatActivity() {
                 requestDeviceAdmin()
                 return@setOnClickListener
             }
-            FocusSessionManager.startSession(this)
 
-            val dpm =
-                getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
-
-            dpm.lockNow()
-
-            scheduleSessionEnd(applicationContext);
-            startForegroundService(Intent(this, LockService::class.java))
+            showLoading()
+            initializeKnownAppsAndStart()
         }
 
         val btnSelectApp = findViewById<Button>(R.id.btnSelectApp)
@@ -91,6 +88,66 @@ class MainActivity : AppCompatActivity() {
         btnSelectApp.setOnClickListener {
             showAppPicker()
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun initializeKnownAppsAndStart() {
+        Thread {
+            val apps = getAllRelevantApps()
+            val launchableApps = getLaunchableAppsList(this)
+
+            runOnUiThread {
+                KnownAppsStore.set(apps)
+                KnownAppsStore.getAll().forEach {
+                    Log.i("ANKU_FOCUS_KNOWN", it)
+                }
+
+                LaunchableAppsStore.set(launchableApps)
+
+                // Optional: debug log
+                launchableApps.forEach {
+                    Log.i("FOCUS_LAUNCHABLE", it)
+                }
+                hideLoading()
+                startFocusSession()
+            }
+        }.start()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun startFocusSession() {
+        FocusSessionManager.startSession(this)
+
+        val dpm =
+            getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+
+        dpm.lockNow()
+
+        scheduleSessionEnd(applicationContext);
+        startForegroundService(Intent(this, LockService::class.java))
+    }
+
+    private fun getAllRelevantApps(): Set<String> {
+        val pm = packageManager
+        val result = mutableSetOf<String>()
+
+        // 1. Launcher apps (important)
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+
+        val launcherApps = pm.queryIntentActivities(launcherIntent, 0)
+        launcherApps.forEach {
+            result.add(it.activityInfo.packageName)
+        }
+
+        // 2. Installed apps (system + hidden)
+        val installed = pm.getInstalledPackages(0)
+        installed.forEach {
+            result.add(it.packageName)
+        }
+
+        return result
     }
 
     private fun showAppPicker() {
@@ -114,6 +171,23 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun getLaunchableAppsList(context: Context): Set<String> {
+        val pm = context.packageManager
+        val result = mutableSetOf<String>()
+
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+
+        val resolveInfoList = pm.queryIntentActivities(intent, 0)
+
+        resolveInfoList.forEach {
+            result.add(it.activityInfo.packageName)
+        }
+
+        return result
+    }
+
     fun getLaunchableApps(context: Context): List<LaunchableApp> {
         val pm = context.packageManager
 
@@ -129,6 +203,14 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             .sortedBy { it.label.lowercase() }
+    }
+
+    private fun showLoading() {
+        findViewById<ProgressBar>(R.id.loading).visibility = View.VISIBLE
+    }
+
+    private fun hideLoading() {
+        findViewById<ProgressBar>(R.id.loading).visibility = View.GONE
     }
 
     private fun showAccessibilityRequiredDialog() {
