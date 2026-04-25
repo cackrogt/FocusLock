@@ -22,11 +22,9 @@ class LockService : Service() {
     override fun onCreate() {
         super.onCreate()
         startForegroundServiceInternal()
-        //FocusSessionState.start()
 
         OverlayController.init(applicationContext, allowedApps)
         OverlayController.show()
-        //startMonitoring()
     }
 
     private fun startForegroundServiceInternal() {

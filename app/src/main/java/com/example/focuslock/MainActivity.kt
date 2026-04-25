@@ -3,8 +3,6 @@ package com.example.focuslock
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.AlarmManager
 import android.app.AlertDialog
-import android.app.AppOpsManager
-import android.app.PendingIntent
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
@@ -17,26 +15,14 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import android.view.accessibility.AccessibilityManager
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.focuslock.ui.theme.FocusLockTheme
 import android.widget.ProgressBar
 import android.view.View
 import com.example.focuslock.lock_overlay.LockService
 import com.example.focuslock.objects.AllowedAppStore
 import com.example.focuslock.objects.FocusSessionManager
 import com.example.focuslock.objects.FocusSessionState
-import com.example.focuslock.objects.KnownAppsStore
 import com.example.focuslock.objects.LaunchableAppsStore
 
 class MainActivity : AppCompatActivity() {
@@ -52,14 +38,6 @@ class MainActivity : AppCompatActivity() {
         val adminComponent = ComponentName(this, FocusDeviceAdminReceiver::class.java)
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!alarmManager.canScheduleExactAlarms()) {
-                // Redirect user to settings
-                startActivity(
-                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                )
-            }
-        }
         if (!Settings.canDrawOverlays(this)) {
             startActivity(
                 Intent(
@@ -67,10 +45,6 @@ class MainActivity : AppCompatActivity() {
                     Uri.parse("package:$packageName")
                 )
             )
-        }
-
-        if (!hasUsageAccess()) {
-            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
         }
 
         findViewById<Button>(R.id.btnEnable).setOnClickListener @androidx.annotation.RequiresPermission(
@@ -129,7 +103,6 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.S)
     private fun initializeKnownAppsAndStart() {
         Thread {
-            val apps = getAllRelevantApps()
             val launchableApps = getLaunchableAppsList(this)
 
             runOnUiThread {
@@ -179,12 +152,6 @@ class MainActivity : AppCompatActivity() {
         val launcherApps = pm.queryIntentActivities(launcherIntent, 0)
         launcherApps.forEach {
             result.add(it.activityInfo.packageName)
-        }
-
-        // 2. Installed apps (system + hidden)
-        val installed = pm.getInstalledPackages(0)
-        installed.forEach {
-            result.add(it.packageName)
         }
 
         return result
@@ -286,17 +253,6 @@ class MainActivity : AppCompatActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
-    }
-
-
-    private fun hasUsageAccess(): Boolean {
-        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-        val mode = appOps.checkOpNoThrow(
-            AppOpsManager.OPSTR_GET_USAGE_STATS,
-            android.os.Process.myUid(),
-            packageName
-        )
-        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     private fun requestDeviceAdmin() {

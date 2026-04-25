@@ -13,11 +13,18 @@ import android.widget.Button
 import com.example.focuslock.FocusDeviceAdminReceiver
 import com.example.focuslock.R
 import com.example.focuslock.objects.AllowedAppStore
+import android.os.Handler
+import android.os.Looper
+import android.widget.TextView
+import com.example.focuslock.objects.FocusSessionState
 
 class LockOverlay(
     private val context: Context,
     private val allowedApps: Set<String>
 ) {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var timerRunnable: Runnable? = null
 
     private val windowManager =
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -41,54 +48,20 @@ class LockOverlay(
         )
 
         setupButtons(view!!)
+        startTimer(view!!)
         windowManager.addView(view, params)
-    }
-
-    fun show2() {
-        hide()
-
-        val inflater = LayoutInflater.from(context)
-        view = inflater.inflate(R.layout.overlay_lock, null)
-
-        view!!.isClickable = true
-        view!!.isFocusable = true
-        view!!.setOnTouchListener { _, _ -> true }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.OPAQUE
-        )
-
-        setupButtons(view!!)
-        windowManager.addView(view, params)
-        isAttached = true
     }
 
 
     fun hide() {
-//        if (isAttached && view != null) {
-//            windowManager.removeViewImmediate(view)
-//            view = null
-//            isAttached = false
-//        }
+        timerRunnable?.let { handler.removeCallbacks(it) }
+        timerRunnable = null
         view?.let {
             windowManager.removeView(it)
             view = null
         }
     }
 
-
-
-//    fun remove() {
-//        if (isAttached) {
-//            windowManager.removeViewImmediate(rootView)
-//            isAttached = false
-//        }
-//    }
 
     private fun setupButtons(v: View) {
         v.findViewById<Button>(R.id.btnApp1).setOnClickListener {
@@ -152,5 +125,30 @@ class LockOverlay(
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
+    }
+
+    private fun startTimer(v: View) {
+        val txtTimer = v.findViewById<TextView>(R.id.txtTimer)
+
+        timerRunnable = object : Runnable {
+            override fun run() {
+
+                val remaining = FocusSessionState.getRemainingMs()
+
+                if (remaining <= 0) {
+                    txtTimer.text = "00:00"
+                    return
+                }
+
+                val minutes = remaining / 60000
+                val seconds = (remaining / 1000) % 60
+
+                txtTimer.text = String.format("%02d:%02d", minutes, seconds)
+
+                handler.postDelayed(this, 1000)
+            }
+        }
+
+        handler.post(timerRunnable!!)
     }
 }

@@ -30,12 +30,6 @@ class FocusAccessibilityService : AccessibilityService() {
         "com.android.settings",
     )
 
-    private val toBeIgnored = setOf(
-        //"com.sec.android.app.launcher",
-        "com.android.systemui",
-        "com.samsung.android.honeyboard"
-    )
-
     private fun lockDevice() {
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE)
                 as DevicePolicyManager
@@ -95,7 +89,6 @@ class FocusAccessibilityService : AccessibilityService() {
             OverlayController.show()
         }
 
-        //classifyEvent(pkg, className)
     }
 
     override fun onInterrupt() {}

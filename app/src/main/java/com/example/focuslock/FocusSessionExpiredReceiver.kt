@@ -1,14 +1,8 @@
 package com.example.focuslock
 
-import android.app.AlarmManager
-import android.app.PendingIntent
-import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import androidx.annotation.RequiresApi
 import com.example.focuslock.lock_overlay.LockService
 import com.example.focuslock.objects.FocusSessionState
 import com.example.focuslock.objects.OverlayController
